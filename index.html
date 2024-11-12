@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparador de CSV</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Comparador de Arquivos CSV</h1>
+        
+        <div class="upload-section">
+            <label for="file1">Carteira de Clientes (ID e Responsável):</label>
+            <input type="file" id="file1" accept=".csv" required>
+        </div>
+        
+        <div class="upload-section">
+            <label for="file2">Lista de Atividades (ID):</label>
+            <input type="file" id="file2" accept=".csv" required>
+        </div>
+        
+        <button onclick="compareFiles()">Analisar</button>
+        
+        <a id="download-link" style="display: none;">Baixar Resultado</a>
+    </div>
+
+    <script>
+        function csvToArray(str, delimiter = ",") {
+            const headers = str.slice(0, str.indexOf("\n")).split(delimiter);
+            const rows = str.slice(str.indexOf("\n") + 1).split("\n");
+
+            return rows.map(row => {
+                const values = row.split(delimiter);
+                return headers.reduce((object, header, index) => {
+                    object[header.trim().toLowerCase()] = values[index]?.trim();
+                    return object;
+                }, {});
+            });
+        }
+
+        async function compareFiles() {
+            const file1 = document.getElementById('file1').files[0];
+            const file2 = document.getElementById('file2').files[0];
+
+            if (!file1 || !file2) {
+                alert("Por favor, selecione os dois arquivos.");
+                return;
+            }
+
+            const file1Text = await file1.text();
+            const file2Text = await file2.text();
+
+            const clientes = csvToArray(file1Text);
+            const atividades = csvToArray(file2Text);
+
+            // Obter todos os IDs de atividades para comparação
+            const atividadesIds = new Set(atividades.map(item => item.id));
+
+            // Filtrar clientes sem atividades
+            const clientesSemAtividade = clientes.filter(cliente => 
+                !atividadesIds.has(cliente.id)
+            );
+
+            // Gerar CSV de resultado
+            let csvContent = "ID,Responsavel\n";
+            clientesSemAtividade.forEach(cliente => {
+                csvContent += `${cliente.id},${cliente.responsavel}\n`;
+            });
+
+            // Criar link para download
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const downloadLink = document.getElementById('download-link');
+            downloadLink.href = url;
+            downloadLink.download = "clientes_sem_atividades.csv";
+            downloadLink.style.display = "block";
+            downloadLink.textContent = "Baixar Resultado";
+        }
+    </script>
+</body>
+</html>
