@@ -3,24 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Comparador de CSV</title>
+    <title>Verificação de Clientes sem Atividade</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Comparador de Arquivos CSV</h1>
+        <h1>Verificador de Clientes sem Atividade</h1>
         
         <div class="upload-section">
-            <label for="file1">Carteira de Clientes (ID e Responsável):</label>
+            <label for="file1">Carteira de Clientes:</label>
             <input type="file" id="file1" accept=".csv" required>
         </div>
         
         <div class="upload-section">
-            <label for="file2">Lista de Atividades (ID):</label>
+            <label for="file2">Lista de Atividades:</label>
             <input type="file" id="file2" accept=".csv" required>
         </div>
         
-        <button onclick="compareFiles()">Analisar</button>
+        <button onclick="prepareColumns()">Analisar</button>
+        
+        <div id="column-selection" style="display: none;">
+            <h3>Selecione as Colunas</h3>
+            <div id="file1-columns">
+                <p>Carteira de Clientes:</p>
+                <label>ID:
+                    <select id="file1-id-column"></select>
+                </label>
+                <label>Responsável:
+                    <select id="file1-responsavel-column"></select>
+                </label>
+            </div>
+            <div id="file2-columns">
+                <p>Lista de Atividades:</p>
+                <label>ID:
+                    <select id="file2-id-column"></select>
+                </label>
+            </div>
+            <button onclick="findClientsWithoutActivity()">Confirmar Seleção e Analisar</button>
+        </div>
         
         <a id="download-link" style="display: none;">Baixar Resultado</a>
     </div>
@@ -30,16 +50,19 @@
             const headers = str.slice(0, str.indexOf("\n")).split(delimiter);
             const rows = str.slice(str.indexOf("\n") + 1).split("\n");
 
-            return rows.map(row => {
-                const values = row.split(delimiter);
-                return headers.reduce((object, header, index) => {
-                    object[header.trim().toLowerCase()] = values[index]?.trim();
-                    return object;
-                }, {});
-            });
+            return {
+                headers: headers.map(header => header.trim()),
+                data: rows.map(row => {
+                    const values = row.split(delimiter);
+                    return headers.reduce((object, header, index) => {
+                        object[header.trim()] = values[index]?.trim();
+                        return object;
+                    }, {});
+                })
+            };
         }
 
-        async function compareFiles() {
+        async function prepareColumns() {
             const file1 = document.getElementById('file1').files[0];
             const file2 = document.getElementById('file2').files[0];
 
@@ -51,21 +74,56 @@
             const file1Text = await file1.text();
             const file2Text = await file2.text();
 
-            const clientes = csvToArray(file1Text);
-            const atividades = csvToArray(file2Text);
+            const file1Array = csvToArray(file1Text);
+            const file2Array = csvToArray(file2Text);
 
-            // Obter todos os IDs de atividades para comparação
-            const atividadesIds = new Set(atividades.map(item => item.id));
+            populateColumnSelectors(file1Array.headers, 'file1-id-column', 'file1-responsavel-column');
+            populateColumnSelectors(file2Array.headers, 'file2-id-column');
+
+            document.getElementById('column-selection').style.display = 'block';
+        }
+
+        function populateColumnSelectors(headers, idSelectId, responsavelSelectId = null) {
+            const idSelect = document.getElementById(idSelectId);
+            idSelect.innerHTML = '';
+            headers.forEach(header => {
+                idSelect.add(new Option(header, header));
+            });
+
+            if (responsavelSelectId) {
+                const responsavelSelect = document.getElementById(responsavelSelectId);
+                responsavelSelect.innerHTML = '';
+                headers.forEach(header => {
+                    responsavelSelect.add(new Option(header, header));
+                });
+            }
+        }
+
+        async function findClientsWithoutActivity() {
+            const file1 = document.getElementById('file1').files[0];
+            const file2 = document.getElementById('file2').files[0];
+            const file1Text = await file1.text();
+            const file2Text = await file2.text();
+
+            const file1Array = csvToArray(file1Text);
+            const file2Array = csvToArray(file2Text);
+
+            const file1IdColumn = document.getElementById('file1-id-column').value;
+            const file1ResponsavelColumn = document.getElementById('file1-responsavel-column').value;
+            const file2IdColumn = document.getElementById('file2-id-column').value;
+
+            // Criar um conjunto de IDs que têm atividades
+            const atividadesSet = new Set(file2Array.data.map(atividade => atividade[file2IdColumn]));
 
             // Filtrar clientes sem atividades
-            const clientesSemAtividade = clientes.filter(cliente => 
-                !atividadesIds.has(cliente.id)
+            const clientesSemAtividade = file1Array.data.filter(cliente => 
+                !atividadesSet.has(cliente[file1IdColumn])
             );
 
-            // Gerar CSV de resultado
-            let csvContent = "ID,Responsavel\n";
+            // Gerar CSV de resultado com colunas: ID, Responsável
+            let csvContent = "ID,Responsável\n";
             clientesSemAtividade.forEach(cliente => {
-                csvContent += `${cliente.id},${cliente.responsavel}\n`;
+                csvContent += `${cliente[file1IdColumn]},${cliente[file1ResponsavelColumn]}\n`;
             });
 
             // Criar link para download
@@ -73,17 +131,19 @@
             const url = URL.createObjectURL(blob);
             const downloadLink = document.getElementById('download-link');
             downloadLink.href = url;
-            downloadLink.download = "clientes_sem_atividades.csv";
+            downloadLink.download = "clientes_sem_atividade.csv";
             downloadLink.style.display = "block";
             downloadLink.textContent = "Baixar Resultado";
+
+            document.getElementById('column-selection').style.display = 'none';
         }
     </script>
-
-<span> <h4>
-                    Converta sua planilha para .CSV pelo Google Planilhas para melhor assertividade<br>
-                    Na planilha da carteira de clientes, deixe apenas as colunas ID e Responsável<br>
-                    Na planilha de lista de atividades, deixe apenas o ID do cliente
+    <span> <h4>
+        Converta sua planilha para .CSV pelo Google Planilhas para melhor assertividade<br>
+        Na planilha da carteira de clientes, deixe apenas as colunas ID e Responsável<br>
+        Na planilha de lista de atividades, deixe apenas o ID do cliente
 </h4>
-</span>
+
+
 </body>
 </html>
