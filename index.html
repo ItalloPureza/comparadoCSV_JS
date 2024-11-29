@@ -32,6 +32,9 @@
                 <label>Responsável:
                     <select id="file1-responsavel-column"></select>
                 </label>
+                <label>Fase Atual:
+                    <select id="file1-fase-column"></select>
+                </label>
             </div>
             <div id="file2-columns">
                 <p>Lista de Atividades:</p>
@@ -46,6 +49,9 @@
     </div>
 
     <script>
+        // Lista de fases que devem ser ignoradas
+        const IGNORED_PHASES = ["Suspensos", "Tratativa de Cancelamento"];
+
         function csvToArray(str, delimiter = ",") {
             const headers = str.slice(0, str.indexOf("\n")).split(delimiter);
             const rows = str.slice(str.indexOf("\n") + 1).split("\n");
@@ -77,13 +83,13 @@
             const file1Array = csvToArray(file1Text);
             const file2Array = csvToArray(file2Text);
 
-            populateColumnSelectors(file1Array.headers, 'file1-id-column', 'file1-responsavel-column');
+            populateColumnSelectors(file1Array.headers, 'file1-id-column', 'file1-responsavel-column', 'file1-fase-column');
             populateColumnSelectors(file2Array.headers, 'file2-id-column');
 
             document.getElementById('column-selection').style.display = 'block';
         }
 
-        function populateColumnSelectors(headers, idSelectId, responsavelSelectId = null) {
+        function populateColumnSelectors(headers, idSelectId, responsavelSelectId = null, faseSelectId = null) {
             const idSelect = document.getElementById(idSelectId);
             idSelect.innerHTML = '';
             headers.forEach(header => {
@@ -95,6 +101,14 @@
                 responsavelSelect.innerHTML = '';
                 headers.forEach(header => {
                     responsavelSelect.add(new Option(header, header));
+                });
+            }
+
+            if (faseSelectId) {
+                const faseSelect = document.getElementById(faseSelectId);
+                faseSelect.innerHTML = '';
+                headers.forEach(header => {
+                    faseSelect.add(new Option(header, header));
                 });
             }
         }
@@ -110,14 +124,21 @@
 
             const file1IdColumn = document.getElementById('file1-id-column').value;
             const file1ResponsavelColumn = document.getElementById('file1-responsavel-column').value;
+            const file1FaseColumn = document.getElementById('file1-fase-column').value;
             const file2IdColumn = document.getElementById('file2-id-column').value;
+
+            if (!file1IdColumn || !file1ResponsavelColumn || !file1FaseColumn || !file2IdColumn) {
+                alert("Por favor, selecione todas as colunas necessárias.");
+                return;
+            }
 
             // Criar um conjunto de IDs que têm atividades
             const atividadesSet = new Set(file2Array.data.map(atividade => atividade[file2IdColumn]));
 
-            // Filtrar clientes sem atividades
+            // Filtrar clientes sem atividades, excluindo os que estão em fases ignoradas
             const clientesSemAtividade = file1Array.data.filter(cliente => 
-                !atividadesSet.has(cliente[file1IdColumn])
+                !atividadesSet.has(cliente[file1IdColumn]) &&
+                !IGNORED_PHASES.includes(cliente[file1FaseColumn])
             );
 
             // Gerar CSV de resultado com colunas: ID, Responsável
@@ -138,10 +159,5 @@
             document.getElementById('column-selection').style.display = 'none';
         }
     </script>
-    <span> <h4>
-        Converta sua planilha para .CSV pelo Google Planilhas para melhor assertividade<br>
-        </h4>
-
-
 </body>
 </html>
